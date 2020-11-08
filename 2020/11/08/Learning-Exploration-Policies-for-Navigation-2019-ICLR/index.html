@@ -6,19 +6,23 @@
     <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="generator" content="Jthonlab">
-    <title>all-archives - Jthonlab</title>
+    <title>Learning Exploration Policies for Navigation. 2019 ICLR 笔记 - Jthonlab</title>
     <meta name="author" content="Jthon lab">
     
+        <meta name="keywords" content="Reinforcement Learning,Navigation">
     
     
-    <script type="application/ld+json">{"@context":"http://schema.org","@type":"Website","@id":"http://yoursite.com","author":{"@type":"Person","name":"Jthon lab","sameAs":["https://github.com/Jthon-lab?tab=repositories"],"image":"avatar_duck.jpg"},"name":"Jthonlab","description":"","url":"http://yoursite.com"}</script>
-    <meta property="og:type" content="blog">
-<meta property="og:title" content="all-archives">
-<meta property="og:url" content="http://yoursite.com/all-archives/index.html">
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Jthon lab","sameAs":["https://github.com/Jthon-lab?tab=repositories"],"image":"avatar_duck.jpg"},"articleBody":"这篇文章旨在提升新场景导航中Exploration效率问题，导航本身是一个sparse-reward的场景，如果没有一些额外的帮助搜索的机制的话会给强化学习带来困难，有一些工作使用了辅助任务来提升学习的效率，如UNREAL，还有Learning to Navigate in Complex Environments等文章。这篇文章将传统的导航算法SLAM和强化学习相结合，提升了Exploration的效率。\n\nNavigation Problem如今导航算法主要分为了两个方面：(1) 基于建图和路径规划的方式 (2) 基于学习的方式。对于第一种方式，现在往往使用人工的方式去控制机器人来尽快建立环境地图或者使用一些启发式搜索的方式来提升探索的效率。对于第二种方式，往往在场景中定义出一个特定的任务来让智能体去完成或者是假定环境已经被探索然后再学习导航策略。但是像random policy这样简单的探索策略效率非常低，而假设环境已知则是不切实际的一个假设。虽然现在有很多工作都基于curiosity来设计一个intrinsic reward去鼓励探索行为，但是针对导航问题可能会有更高效的解决方法。这篇文章就通过将SLAM与强化学习结合的方式来提升导航的效率。\nApproach这篇文章仍然是一篇基于强化学习的文章，observation是RGB-D图像，action是离散动作包括了最基本的如前进、后退、左转、右转等。这个智能体会被放在一个novel environment,希望学到一个$pi_{e}$，能尽快的在这个场景中探索完全。这篇文章主要提出了如下的贡献(1) 关于$pi_{e}$的设计 (2) reward的设计 (3) 利用demonstrations来提升$pi_{e}$的训练速度\n","dateCreated":"2020-11-08T20:05:41+08:00","dateModified":"2020-11-08T21:26:15+08:00","datePublished":"2020-11-08T20:05:41+08:00","description":"这篇文章旨在提升新场景导航中Exploration效率问题，导航本身是一个sparse-reward的场景，如果没有一些额外的帮助搜索的机制的话会给强化学习带来困难，有一些工作使用了辅助任务来提升学习的效率，如UNREAL，还有Learning to Navigate in Complex Environments等文章。这篇文章将传统的导航算法SLAM和强化学习相结合，提升了Exploration的效率。","headline":"Learning Exploration Policies for Navigation. 2019 ICLR 笔记","image":[],"mainEntityOfPage":{"@type":"WebPage","@id":"http://yoursite.com/2020/11/08/Learning-Exploration-Policies-for-Navigation-2019-ICLR/"},"publisher":{"@type":"Organization","name":"Jthon lab","sameAs":["https://github.com/Jthon-lab?tab=repositories"],"image":"avatar_duck.jpg","logo":{"@type":"ImageObject","url":"avatar_duck.jpg"}},"url":"http://yoursite.com/2020/11/08/Learning-Exploration-Policies-for-Navigation-2019-ICLR/"}</script>
+    <meta name="description" content="这篇文章旨在提升新场景导航中Exploration效率问题，导航本身是一个sparse-reward的场景，如果没有一些额外的帮助搜索的机制的话会给强化学习带来困难，有一些工作使用了辅助任务来提升学习的效率，如UNREAL，还有Learning to Navigate in Complex Environments等文章。这篇文章将传统的导航算法SLAM和强化学习相结合，提升了Exploratio">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Learning Exploration Policies for Navigation. 2019 ICLR 笔记">
+<meta property="og:url" content="http://yoursite.com/2020/11/08/Learning-Exploration-Policies-for-Navigation-2019-ICLR/index.html">
 <meta property="og:site_name" content="Jthonlab">
+<meta property="og:description" content="这篇文章旨在提升新场景导航中Exploration效率问题，导航本身是一个sparse-reward的场景，如果没有一些额外的帮助搜索的机制的话会给强化学习带来困难，有一些工作使用了辅助任务来提升学习的效率，如UNREAL，还有Learning to Navigate in Complex Environments等文章。这篇文章将传统的导航算法SLAM和强化学习相结合，提升了Exploratio">
 <meta property="og:locale" content="en_US">
-<meta property="article:published_time" content="2020-08-15T10:43:55.000Z">
-<meta property="article:modified_time" content="2020-08-15T10:46:21.465Z">
+<meta property="article:published_time" content="2020-11-08T12:05:41.000Z">
+<meta property="article:modified_time" content="2020-11-08T13:26:15.554Z">
 <meta property="article:author" content="Jthon lab">
 <meta name="twitter:card" content="summary">
     
@@ -54,7 +58,7 @@
         
     
 
-<header id="header" data-behavior="1">
+<header id="header" data-behavior="4">
     <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
     <div class="header-title">
         <a
@@ -87,7 +91,7 @@
         
     
 
-<nav id="sidebar" data-behavior="1">
+<nav id="sidebar" data-behavior="4">
     <div class="sidebar-container">
         
             <div class="sidebar-profile">
@@ -189,100 +193,44 @@
 </nav>
 
             
-            <div id="main" data-behavior="1"
+            <div id="main" data-behavior="4"
                  class="
-                        hasCoverMetaIn
+                        hasCoverMetaOut
                         ">
                 
-<div id="archives" class="main-content-wrap">
-    <form id="filter-form" action="#">
-        <input name="date" type="text" class="form-control input--xlarge" placeholder="Search date (YYYY/MM/DD)" autofocus="autofocus">
-    </form>
-    <h5 class="archive-result text-color-base text-xlarge"
-        data-message-zero="no post found"
-        data-message-one="1 post found"
-        data-message-other="{n} posts found"></h5>
-    <section class="boxes">
-        
-            
-            
-            
-                
-                
-                <div class="archive archive-year box" data-date="2020">
-                    <h4 class="archive-title">
-                        <a class="link-unstyled" href="/archives/2020">2020</a>
-                    </h4>
-            
-            
-                
-                <ul class="archive-posts archive-month" data-date="202011">
-                    <h5 class="archive-title">
-                        <a class="link-unstyled" href="/archives/2020/11">November</a>
-                    </h5>
-                
-            
-            <li class="archive-post archive-day" data-date="20201108">
-                <a class="archive-post-title" href="/2020/11/08/Learning-Exploration-Policies-for-Navigation-2019-ICLR/">Learning Exploration Policies for Navigation. 2019 ICLR 笔记</a>
-                <span class="archive-post-date"> - nov 08, 2020</span>
-            </li>
-        
-            
-            
-            
-            
-                
-                    </ul>
-                
-                <ul class="archive-posts archive-month" data-date="202010">
-                    <h5 class="archive-title">
-                        <a class="link-unstyled" href="/archives/2020/10">October</a>
-                    </h5>
-                
-            
-            <li class="archive-post archive-day" data-date="20201019">
-                <a class="archive-post-title" href="/2020/10/19/Goal-Aware-Prediction-Learning-to-Model-What-Matters-2020.%20ICML%E7%AC%94%E8%AE%B0/">Goal Aware Prediction Learning to Model What Matters. 2020 ICML 笔记</a>
-                <span class="archive-post-date"> - oct 19, 2020</span>
-            </li>
-        
-            
-            
-            
-            
-                
-                    </ul>
-                
-                <ul class="archive-posts archive-month" data-date="202009">
-                    <h5 class="archive-title">
-                        <a class="link-unstyled" href="/archives/2020/09">September</a>
-                    </h5>
-                
-            
-            <li class="archive-post archive-day" data-date="20200904">
-                <a class="archive-post-title" href="/2020/09/04/Evolution-Guided-Policy-Gradient-in-Reinforcement.%202018%20NIPS%E7%AC%94%E8%AE%B0/">Evolution-Guided Policy Gradient in Reinforcement Learning. 2018 NIPS 笔记</a>
-                <span class="archive-post-date"> - sep 04, 2020</span>
-            </li>
-        
-            
-            
-            
-            
-                
-                    </ul>
-                
-                <ul class="archive-posts archive-month" data-date="202008">
-                    <h5 class="archive-title">
-                        <a class="link-unstyled" href="/archives/2020/08">August</a>
-                    </h5>
-                
-            
-            <li class="archive-post archive-day" data-date="20200815">
-                <a class="archive-post-title" href="/2020/08/15/On%20Bouns-Based%20Exploration%20methods%20in%20the%20arcade%20learning%20environment.%202020%20ICLR%E7%AC%94%E8%AE%B0/">On Bouns-Based Exploration methods in the arcade learning environment. 2020 ICLR 笔记</a>
-                <span class="archive-post-date"> - aug 15, 2020</span>
-            </li>
-        
-    </section>
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-center">
+    
+        <h1 class="post-title">
+            Learning Exploration Policies for Navigation. 2019 ICLR 笔记
+        </h1>
+    
+    
 </div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <p>这篇文章旨在提升新场景导航中Exploration效率问题，导航本身是一个sparse-reward的场景，如果没有一些额外的帮助搜索的机制的话会给强化学习带来困难，有一些工作使用了辅助任务来提升学习的效率，如UNREAL，还有Learning to Navigate in Complex Environments等文章。这篇文章将传统的导航算法SLAM和强化学习相结合，提升了Exploration的效率。</p>
+<a id="more"></a>
+<h2 id="Navigation-Problem"><a href="#Navigation-Problem" class="headerlink" title="Navigation Problem"></a>Navigation Problem</h2><p>如今导航算法主要分为了两个方面：(1) 基于建图和路径规划的方式 (2) 基于学习的方式。对于第一种方式，现在往往使用人工的方式去控制机器人来尽快建立环境地图或者使用一些启发式搜索的方式来提升探索的效率。对于第二种方式，往往在场景中定义出一个特定的任务来让智能体去完成或者是假定环境已经被探索然后再学习导航策略。但是像random policy这样简单的探索策略效率非常低，而假设环境已知则是不切实际的一个假设。虽然现在有很多工作都基于curiosity来设计一个intrinsic reward去鼓励探索行为，但是针对导航问题可能会有更高效的解决方法。这篇文章就通过将SLAM与强化学习结合的方式来提升导航的效率。</p>
+<h2 id="Approach"><a href="#Approach" class="headerlink" title="Approach"></a>Approach</h2><p>这篇文章仍然是一篇基于强化学习的文章，observation是RGB-D图像，action是离散动作包括了最基本的如前进、后退、左转、右转等。这个智能体会被放在一个novel environment,希望学到一个$pi_{e}$，能尽快的在这个场景中探索完全。这篇文章主要提出了如下的贡献(1) 关于$pi_{e}$的设计 (2) reward的设计 (3) 利用demonstrations来提升$pi_{e}$的训练速度</p>
+
+            
+
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+        
+        
+    </div>
+</article>
+
+
 
                 <footer id="footer" class="main-content-wrap">
     <span class="copyrights">
