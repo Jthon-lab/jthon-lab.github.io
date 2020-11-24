@@ -1,0 +1,336 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="generator" content="Jthonlab">
+    <title>Learning Object Relation Graph and Tentative Policy for Visual Navigation. 2020 ECCV 笔记 - Jthonlab</title>
+    <meta name="author" content="Jthon lab">
+    
+        <meta name="keywords" content="Reinforcement Learning,Navigation">
+    
+    
+    
+    <script type="application/ld+json">{"@context":"http://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Jthon lab","sameAs":["https://github.com/Jthon-lab?tab=repositories"],"image":"avatar_duck.jpg"},"articleBody":"这篇论文针对的研究问题是visual navigation问题，这篇文章的创新点主要有三点：(1) 创新性的提出了一种object relation graph模块，使用了GCN来提取出不同物体种类之间的空间信息以及视觉信息(2) 使用了Imitation Learning + Reinforcement Learning的方式来学习出更robust的导航策略(3) 提出了一种memory-augmented tentative policy network(TPN)来帮助智能体在进入到一个死循环状态时能够及时跳出来\n\nTask Defination视觉导航的任务目标为：智能体到目标的距离小于阈值，且当前视角下存在目标物体。其中目标定义为特定种类的物体。Actions包括了MoveAhead, RotateLeft, RotateRight, LookUp, LookDown, Done，因此是一个离散动作空间的任务。比较特殊的是这个Done的行动，当智能体真的完成任务时采用了Done的动作，将会获得一个较大的奖励并且episode 结束，而智能体没有完成任务时，使用Done动作无法获得奖励，并且episode结束。本篇文章使用的仿真平台是Ai2Thor\nObject Representation Graph首先这篇文章使用一个Faster RCNN网络来进行目标检测的任务，对于每一个检测出来的目标，能够获得bounding box以及置信度，记为(x,y,w,h,score),而对于当前视角下不存在的目标，结果记为(0,0,0,0,0)，为了提取出跟目标相关的信息，作者又加入了一个one-hot编码的label来记录哪一个种类是目标物体，因此对于每一个种类，都能够获得(x,y,w,h,score,label)这么一个6维的向量，这样的一个Nx6的矩阵称作Location-aware Feature。这些信息其实记录的是空间位置相关的信息。除了空间位置信息之外，还需要空间的视觉信息，为了获得这些local-appearence features, 作者把每一个种类的bounding box和图片都重新放到Faster RCNN这个网络中，bounding box起到mask的作用，把中间某一层的结果作为输出，因此能够获得Nx512的local appearance features。那么接下来怎么能够把local-appearence feature 和 location-aware feature进行融合呢？作者首先使用了GCN来对location-aware feature进行变换，这个graph包括了结点以及邻接矩阵，记为G=（N,A),其中每一个结点$N_{i}$为(x,y,w,h,score,label)的向量，X就是所有节点的信息(Nx6的矩阵 )，邻接矩阵A是一个待学习的参数，同时还有一个变换矩阵W也是一个待学习的参数，整个GCN网络的计算流程如下：$$ Z = f(A \\cdot X \\cdot W) $$\n其中f是ReLU激活函数。得到Z之后，把Z当做一个Attention Module,跟local-appearence features进行融合，最终得到了encoded feature。ORG模块的整体架构如Figure 1所示。\nFigure 1.Architecture of Object Representation Graph\n\nNavigation Policy通过ORG模块得到了local feature的表达，同样还需要global feature的表达，这一部分作者使用了预训练好的ResNet-18来进行特征提取，最终整个网络输入的视觉信息包括了ORG模块提取的N*512维的特征以及ResNet-18提取出的全局的feature (1024或者是2048维？具体参考ResNet-18)。整个视觉feature记为$v_{t}$导航本身是一个POMDP问题，所以作者用了一个加入LSTM的结构，同时也把上一时刻的动作$a_{t-1}$也作为输入，然后作者使用了A3C算法，最终整个导航policy的流程可以写成如下三个公式：$$ f_{t}, c_{t}, h_{t} = LSTM(a_{t-1}, c_{t-1}, h_{t-1}, v_{t}) $$$$ \\pi_{\\theta}(s_{t}) = MLP(f_{t}) $$$$ v_{\\theta}(s_{t}) = MLP(f_{t}) $$为了防止导航策略卡在某一个状态里面原地打转，作者加入了Imitation Learning的技巧来帮助训练，提升导航策略的鲁棒性，具体来说就是当智能体判断出进入到一个deadlock状态时，使用路径规划算法得到的行动作为专家策略，讲Imitation Learning得到的loss加入到训练中去。因此最终的loss写成如下形式：$$ L = L_{nav} + L_{il} $$作者特别提到，由于imitation learning容易产生过拟合的现象，因此imitation learning的损失只有在deadlock 的状态下才加入训练，并不是每一个state 都加入imitation learning loss来训练。整个导航策略的框架图如Figure 2所示。\nFigure 2.Architecture of Navigation Policy\n\nMemory Augmented Tentative Policy NetworkExternal Memory 用来记忆一个episode中出现的状态，当发现某一个新状态与external memory中存储的状态非常相似的时候，则认为进入了deadlock状态。Internal Memory 这个记忆模块旨在记录历史的行动和状态，希望通过历史的信息来指导智能体跳出deadlock状态。对于这一部分我的理解是：假如智能体在某一个时间段{t,t+1,t+2…t+N}陷入到了一个死循环中，那么这样的死循环已经影响到了LSTM得到的状态$f_{t}$，所以希望使用历史的信息$f_{0},f_{1}…f_{T}$来指导形成一个跳出循环的动作。针对internal memory, 作者把$f_{t}$作为t时刻记忆$m_{t}$的key, 然后把$f_{t+1}$,$a_{t}$作为value。根据当前的$f_{t}$和internal memory的keys, 得到一个注意力的权重，然后通过这个权重把所有internal memory的value进行加权求和得到memory feature, 将memory feature 和f_{t}拼接起来得到最终的embedding, 然后根据这个embedding去学习action。这个action用来指导跳出deadlock。TPN的训练也是使用imitation learning的方式，利用路径规划算法得到专家行动，然后使用交叉熵损失来训练TPN, 也是只有在进入deadlock的时候才对TPN进行训练。TPN的结构如Figure 3所示。\nFigure 3.Architecture of Memory-Augmented Tentitive Policy Network\n\nExperiments(1) vs Baselines和baselines算法的对比结果图如Figure 4所示，能够看出本文的算法超出了baselines中提出的算法\nFigure 4.Experiments Results vs Baselines\n\n(2) Ablation Study本文针对提出的三个创新点分别进行了消融实验，体现在Figure 5中的w/o IL, w/o ORG, w/o TPN，能够看出去掉了这些模块之后表现都有小部分下降，说明了这几个模块的有效性。之后又针对Imitation Learning损失的添加方式以及TPN的训练方式进行了实验，能够看出，只有在死循环的时候加入IL的损失能够获得比较好的表现，针对TPN也获得了类似的结果，同时也发现TPN得到的跳出循环的策略要优于Random policy。消融实验的结果图如Figure 5所示\nFigure 5.Ablation Study\n\n(3) Visualization能够看出，baseline经常会卡在某一片区域而无法到达目标物体附近，而作者提出的算法几乎都能够及时的跳出循环，成功到达目标。但比较奇怪的是为什么第一行第四列那个结果，加上了TPN反而会出现一个圆圈，而不加TPN从轨迹看起来更好。结果如Figure 6所示。\nFigure 6.Visualization\n\n","dateCreated":"2020-11-23T18:48:41+08:00","dateModified":"2020-11-23T11:16:06+08:00","datePublished":"2020-11-23T18:48:41+08:00","description":"这篇论文针对的研究问题是visual navigation问题，这篇文章的创新点主要有三点：(1) 创新性的提出了一种object relation graph模块，使用了GCN来提取出不同物体种类之间的空间信息以及视觉信息(2) 使用了Imitation Learning + Reinforcement Learning的方式来学习出更robust的导航策略(3) 提出了一种memory-augmented tentative policy network(TPN)来帮助智能体在进入到一个死循环状态时能够及时跳出来","headline":"Learning Object Relation Graph and Tentative Policy for Visual Navigation. 2020 ECCV 笔记","image":[],"mainEntityOfPage":{"@type":"WebPage","@id":"http://yoursite.com/2020/11/23/Learning-Object-Relation-Graph-and-Tentative-Policy-for-Visual-Navigation-2020-ECCV%E7%AC%94%E8%AE%B0/"},"publisher":{"@type":"Organization","name":"Jthon lab","sameAs":["https://github.com/Jthon-lab?tab=repositories"],"image":"avatar_duck.jpg","logo":{"@type":"ImageObject","url":"avatar_duck.jpg"}},"url":"http://yoursite.com/2020/11/23/Learning-Object-Relation-Graph-and-Tentative-Policy-for-Visual-Navigation-2020-ECCV%E7%AC%94%E8%AE%B0/"}</script>
+    <meta name="description" content="这篇论文针对的研究问题是visual navigation问题，这篇文章的创新点主要有三点：(1) 创新性的提出了一种object relation graph模块，使用了GCN来提取出不同物体种类之间的空间信息以及视觉信息(2) 使用了Imitation Learning + Reinforcement Learning的方式来学习出更robust的导航策略(3) 提出了一种memory-aug">
+<meta property="og:type" content="blog">
+<meta property="og:title" content="Learning Object Relation Graph and Tentative Policy for Visual Navigation. 2020 ECCV 笔记">
+<meta property="og:url" content="http://yoursite.com/2020/11/23/Learning-Object-Relation-Graph-and-Tentative-Policy-for-Visual-Navigation-2020-ECCV%E7%AC%94%E8%AE%B0/index.html">
+<meta property="og:site_name" content="Jthonlab">
+<meta property="og:description" content="这篇论文针对的研究问题是visual navigation问题，这篇文章的创新点主要有三点：(1) 创新性的提出了一种object relation graph模块，使用了GCN来提取出不同物体种类之间的空间信息以及视觉信息(2) 使用了Imitation Learning + Reinforcement Learning的方式来学习出更robust的导航策略(3) 提出了一种memory-aug">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/ORG.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/NavPolicy.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/TPN.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/Baseline.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/Ablation.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/Visualization.png">
+<meta property="article:published_time" content="2020-11-23T10:48:41.000Z">
+<meta property="article:modified_time" content="2020-11-23T03:16:06.857Z">
+<meta property="article:author" content="Jthon lab">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/ORG.png">
+    
+    
+        
+    
+    
+        <meta property="og:image" content="http://yoursite.com/assets/images/avatar_duck.jpg"/>
+    
+    
+    
+    
+    <!--STYLES-->
+    
+<link rel="stylesheet" href="/assets/css/style-ahqseqdv7x8dyzqwhdknvcrrww0emg3sjq868izfcneq33qr7ode8shlnqqr.min.css">
+
+    <!--STYLES END--><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    
+
+    
+
+    
+</head>
+
+    <body>
+        <!-- hexo-inject:begin --><!-- hexo-inject:end --><div id="blog">
+            <!-- Define author's picture -->
+
+
+    
+        
+            
+        
+    
+
+<header id="header" data-behavior="4">
+    <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+    <div class="header-title">
+        <a
+            class="header-title-link"
+            href="/%20"
+            aria-label=""
+        >
+            Jthonlab
+        </a>
+    </div>
+    
+        
+            <a
+                class="header-right-picture "
+                href="#about"
+                aria-label="Open the link: /#about"
+            >
+        
+        
+            <img class="header-picture" src="/assets/images/avatar_duck.jpg" alt="Author&#39;s picture"/>
+        
+        </a>
+    
+</header>
+
+            <!-- Define author's picture -->
+
+
+
+        
+    
+
+<nav id="sidebar" data-behavior="4">
+    <div class="sidebar-container">
+        
+            <div class="sidebar-profile">
+                <a
+                    href="/#about"
+                    aria-label="Read more about the author"
+                >
+                    <img class="sidebar-profile-picture" src="/assets/images/avatar_duck.jpg" alt="Author&#39;s picture"/>
+                </a>
+                <h4 class="sidebar-profile-name">Jthon lab</h4>
+                
+                    <h5 class="sidebar-profile-bio"><p>author.bio</p>
+</h5>
+                
+            </div>
+        
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/"
+                            
+                            rel="noopener"
+                            title="Home"
+                        >
+                        <i class="sidebar-button-icon fa fa-home" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Home</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-categories"
+                            
+                            rel="noopener"
+                            title="Categories"
+                        >
+                        <i class="sidebar-button-icon fa fa-bookmark" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Categories</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="/all-archives"
+                            
+                            rel="noopener"
+                            title="Archives"
+                        >
+                        <i class="sidebar-button-icon fa fa-archive" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">Archives</span>
+                    </a>
+            </li>
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="#about"
+                            
+                            rel="noopener"
+                            title="About"
+                        >
+                        <i class="sidebar-button-icon fa fa-question" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">About</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+            <ul class="sidebar-buttons">
+            
+                <li class="sidebar-button">
+                    
+                        <a
+                            class="sidebar-button-link "
+                            href="https://github.com/Jthon-lab?tab=repositories"
+                            
+                                target="_blank"
+                            
+                            rel="noopener"
+                            title="GitHub"
+                        >
+                        <i class="sidebar-button-icon fab fa-github" aria-hidden="true"></i>
+                        <span class="sidebar-button-desc">GitHub</span>
+                    </a>
+            </li>
+            
+        </ul>
+        
+    </div>
+</nav>
+
+            
+            <div id="main" data-behavior="4"
+                 class="
+                        hasCoverMetaOut
+                        ">
+                
+<article class="post">
+    
+    
+        <div class="post-header main-content-wrap text-center">
+    
+        <h1 class="post-title">
+            Learning Object Relation Graph and Tentative Policy for Visual Navigation. 2020 ECCV 笔记
+        </h1>
+    
+    
+</div>
+
+    
+    <div class="post-content markdown">
+        <div class="main-content-wrap">
+            <p>这篇论文针对的研究问题是visual navigation问题，这篇文章的创新点主要有三点：<br>(1) 创新性的提出了一种object relation graph模块，使用了GCN来提取出不同物体种类之间的空间信息以及视觉信息<br>(2) 使用了Imitation Learning + Reinforcement Learning的方式来学习出更robust的导航策略<br>(3) 提出了一种memory-augmented tentative policy network(TPN)来帮助智能体在进入到一个死循环状态时能够及时跳出来</p>
+<a id="more"></a>
+<h2 id="Task-Defination"><a href="#Task-Defination" class="headerlink" title="Task Defination"></a>Task Defination</h2><p>视觉导航的任务目标为：智能体到目标的距离小于阈值，且当前视角下存在目标物体。其中目标定义为特定种类的物体。<br>Actions包括了MoveAhead, RotateLeft, RotateRight, LookUp, LookDown, Done，因此是一个离散动作空间的任务。<br>比较特殊的是这个Done的行动，当智能体真的完成任务时采用了Done的动作，将会获得一个较大的奖励并且episode 结束，而智能体没有完成任务时，使用Done动作无法获得奖励，并且episode结束。<br>本篇文章使用的仿真平台是Ai2Thor</p>
+<h2 id="Object-Representation-Graph"><a href="#Object-Representation-Graph" class="headerlink" title="Object Representation Graph"></a>Object Representation Graph</h2><p>首先这篇文章使用一个Faster RCNN网络来进行目标检测的任务，对于每一个检测出来的目标，能够获得bounding box以及置信度，记为(x,y,w,h,score),而对于当前视角下不存在的目标，结果记为(0,0,0,0,0)，为了提取出跟目标相关的信息，作者又加入了一个one-hot编码的label来记录哪一个种类是目标物体，因此对于每一个种类，都能够获得(x,y,w,h,score,label)这么一个6维的向量，这样的一个Nx6的矩阵称作Location-aware Feature。这些信息其实记录的是空间位置相关的信息。除了空间位置信息之外，还需要空间的视觉信息，为了获得这些local-appearence features, 作者把每一个种类的bounding box和图片都重新放到Faster RCNN这个网络中，bounding box起到mask的作用，把中间某一层的结果作为输出，因此能够获得Nx512的local appearance features。那么接下来怎么能够把local-appearence feature 和 location-aware feature进行融合呢？作者首先使用了GCN来对location-aware feature进行变换，这个graph包括了结点以及邻接矩阵，记为G=（N,A),其中每一个结点$N_{i}$为(x,y,w,h,score,label)的向量，X就是所有节点的信息(Nx6的矩阵 )，邻接矩阵A是一个待学习的参数，同时还有一个变换矩阵W也是一个待学习的参数，整个GCN网络的计算流程如下：<br>$$ Z = f(A \cdot X \cdot W) $$</p>
+<p>其中f是ReLU激活函数。得到Z之后，把Z当做一个Attention Module,跟local-appearence features进行融合，最终得到了encoded feature。ORG模块的整体架构如Figure 1所示。<br><img src="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/ORG.png" alt="ORG"></p>
+<center><b>Figure 1.Architecture of Object Representation Graph</b></center>
+
+<h2 id="Navigation-Policy"><a href="#Navigation-Policy" class="headerlink" title="Navigation Policy"></a>Navigation Policy</h2><p>通过ORG模块得到了local feature的表达，同样还需要global feature的表达，这一部分作者使用了预训练好的ResNet-18来进行特征提取，最终整个网络输入的视觉信息包括了ORG模块提取的N*512维的特征以及ResNet-18提取出的全局的feature (1024或者是2048维？具体参考ResNet-18)。整个视觉feature记为$v_{t}$导航本身是一个POMDP问题，所以作者用了一个加入LSTM的结构，同时也把上一时刻的动作$a_{t-1}$也作为输入，然后作者使用了A3C算法，最终整个导航policy的流程可以写成如下三个公式：<br>$$ f_{t}, c_{t}, h_{t} = LSTM(a_{t-1}, c_{t-1}, h_{t-1}, v_{t}) $$<br>$$ \pi_{\theta}(s_{t}) = MLP(f_{t}) $$<br>$$ v_{\theta}(s_{t}) = MLP(f_{t}) $$<br>为了防止导航策略卡在某一个状态里面原地打转，作者加入了Imitation Learning的技巧来帮助训练，提升导航策略的鲁棒性，具体来说就是当智能体判断出进入到一个deadlock状态时，使用路径规划算法得到的行动作为专家策略，讲Imitation Learning得到的loss加入到训练中去。因此最终的loss写成如下形式：<br>$$ L = L_{nav} + L_{il} $$<br>作者特别提到，由于imitation learning容易产生过拟合的现象，因此imitation learning的损失只有在deadlock 的状态下才加入训练，并不是每一个state 都加入imitation learning loss来训练。整个导航策略的框架图如Figure 2所示。<br><img src="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/NavPolicy.png" alt="NavPolicy"></p>
+<center><b>Figure 2.Architecture of Navigation Policy</b></center>
+
+<h2 id="Memory-Augmented-Tentative-Policy-Network"><a href="#Memory-Augmented-Tentative-Policy-Network" class="headerlink" title="Memory Augmented Tentative Policy Network"></a>Memory Augmented Tentative Policy Network</h2><p>External Memory 用来记忆一个episode中出现的状态，当发现某一个新状态与external memory中存储的状态非常相似的时候，则认为进入了deadlock状态。<br>Internal Memory 这个记忆模块旨在记录历史的行动和状态，希望通过历史的信息来指导智能体跳出deadlock状态。对于这一部分我的理解是：假如智能体在某一个时间段{t,t+1,t+2…t+N}陷入到了一个死循环中，那么这样的死循环已经影响到了LSTM得到的状态$f_{t}$，所以希望使用历史的信息$f_{0},f_{1}…f_{T}$来指导形成一个跳出循环的动作。针对internal memory, 作者把$f_{t}$作为t时刻记忆$m_{t}$的key, 然后把$f_{t+1}$,$a_{t}$作为value。根据当前的$f_{t}$和internal memory的keys, 得到一个注意力的权重，然后通过这个权重把所有internal memory的value进行加权求和得到memory feature, 将memory feature 和f_{t}拼接起来得到最终的embedding, 然后根据这个embedding去学习action。这个action用来指导跳出deadlock。TPN的训练也是使用imitation learning的方式，利用路径规划算法得到专家行动，然后使用交叉熵损失来训练TPN, 也是只有在进入deadlock的时候才对TPN进行训练。TPN的结构如Figure 3所示。<br><img src="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/TPN.png" alt="TPN"></p>
+<center><b>Figure 3.Architecture of Memory-Augmented Tentitive Policy Network</b></center>
+
+<h2 id="Experiments"><a href="#Experiments" class="headerlink" title="Experiments"></a>Experiments</h2><h4 id="1-vs-Baselines"><a href="#1-vs-Baselines" class="headerlink" title="(1) vs Baselines"></a>(1) vs Baselines</h4><p>和baselines算法的对比结果图如Figure 4所示，能够看出本文的算法超出了baselines中提出的算法<br><img src="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/Baseline.png" alt="Baseline"></p>
+<center><b>Figure 4.Experiments Results vs Baselines</b></center>
+
+<h4 id="2-Ablation-Study"><a href="#2-Ablation-Study" class="headerlink" title="(2) Ablation Study"></a>(2) Ablation Study</h4><p>本文针对提出的三个创新点分别进行了消融实验，体现在Figure 5中的w/o IL, w/o ORG, w/o TPN，能够看出去掉了这些模块之后表现都有小部分下降，说明了这几个模块的有效性。之后又针对Imitation Learning损失的添加方式以及TPN的训练方式进行了实验，能够看出，只有在死循环的时候加入IL的损失能够获得比较好的表现，针对TPN也获得了类似的结果，同时也发现TPN得到的跳出循环的策略要优于Random policy。消融实验的结果图如Figure 5所示<br><img src="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/Ablation.png" alt="Ablation"></p>
+<center><b>Figure 5.Ablation Study</b></center>
+
+<h4 id="3-Visualization"><a href="#3-Visualization" class="headerlink" title="(3) Visualization"></a>(3) Visualization</h4><p>能够看出，baseline经常会卡在某一片区域而无法到达目标物体附近，而作者提出的算法几乎都能够及时的跳出循环，成功到达目标。但比较奇怪的是为什么第一行第四列那个结果，加上了TPN反而会出现一个圆圈，而不加TPN从轨迹看起来更好。结果如Figure 6所示。<br><img src="https://raw.githubusercontent.com/Jthon-lab/image_repo/master/2020.11.23/Visualization.png" alt="Visualization"></p>
+<center><b>Figure 6.Visualization</b></center>
+
+
+            
+
+
+        </div>
+    </div>
+    <div id="post-footer" class="post-footer main-content-wrap">
+        
+        
+        
+    </div>
+</article>
+
+
+
+                <footer id="footer" class="main-content-wrap">
+    <span class="copyrights">
+        Copyrights &copy; 2020 Jthon lab. All Rights Reserved.
+    </span>
+</footer>
+
+            </div>
+            
+        </div>
+        
+
+
+    
+        
+    
+
+<div id="about">
+    <div id="about-card">
+        <div id="about-btn-close">
+            <i class="fa fa-times"></i>
+        </div>
+        
+            <img id="about-card-picture" src="/assets/images/avatar_duck.jpg" alt="Author&#39;s picture"/>
+        
+            <h4 id="about-card-name">Jthon lab</h4>
+        
+            <div id="about-card-bio"><p>author.bio</p>
+</div>
+        
+        
+            <div id="about-card-job">
+                <i class="fa fa-briefcase"></i>
+                <br/>
+                <p>RL</p>
+
+            </div>
+        
+        
+            <div id="about-card-location">
+                <i class="fa fa-map-marker-alt"></i>
+                <br/>
+                Nanjing,China
+            </div>
+        
+    </div>
+</div>
+
+        
+        
+<div id="cover" style="background-image:url('/assets/images/cover.jpg');"></div>
+        <!--SCRIPTS-->
+
+<script src="/assets/js/script-spuaps2qplesxnme8e5wnd40hjkfzjjsqbnwhi8zohmoqbez3cm8pj5m7ejx.min.js"></script>
+
+<!--SCRIPTS END-->
+
+
+
+
+
+    <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+        tex2jax: {
+            inlineMath: [ ["$","$"], ["\\(","\\)"] ],
+            skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+            processEscapes: true
+        }
+    });
+    MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax();
+        for (var i = 0; i < all.length; ++i)
+            all[i].SourceElement().parentNode.className += ' has-jax';
+    });
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML"></script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+</body>
+</html>
